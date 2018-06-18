@@ -6,8 +6,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.GregorianCalendar;
 
-import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
@@ -22,8 +22,12 @@ import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.JToolBar;
 import javax.swing.border.SoftBevelBorder;
+import javax.swing.table.DefaultTableModel;
 
 public class NetworkScanner extends JFrame {
+	static DefaultTableModel jTable;
+	private JButton startButton;
+	private JLabel readyLable;
 	public NetworkScanner() {
 		setTitle("Ping");
 		
@@ -151,7 +155,7 @@ public class NetworkScanner extends JFrame {
 		
 		JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
 		add(statusPanel, BorderLayout.SOUTH);
-		JLabel readyLable = new JLabel("Ready");
+		readyLable = new JLabel("Ready");
 		readyLable.setPreferredSize(new Dimension(320, 20));
 		readyLable.setBorder(new SoftBevelBorder(SoftBevelBorder.LOWERED));
 		JLabel displayLable = new JLabel("Display: All");
@@ -165,9 +169,11 @@ public class NetworkScanner extends JFrame {
 		statusPanel.add(displayLable);
 		statusPanel.add(ThreadsLable);
 		
+		
 		//status bar end
 		
 		//table begin
+		
 		
 		String[] titles = new String[] {
 				"IP", "Ping", "Hostname", "TTL", "Port"
@@ -178,6 +184,8 @@ public class NetworkScanner extends JFrame {
 		
 		JScrollPane sp = new JScrollPane(jTable);
 		add(sp, BorderLayout.CENTER);
+		
+		
 		
 		//table end
 		
@@ -192,10 +200,14 @@ public class NetworkScanner extends JFrame {
 		JTextField rangeStartTextField= new JTextField(10);
 		JLabel RangeEndLabel = new JLabel("to");
 		JTextField rangeEndTextField= new JTextField(10);
-		String set[]={"IP Range","Random","Text File"};  
+		String set[]={"IP Range","Random","Text File"}; 
 		JComboBox comboBox = new JComboBox(set);
-		Icon setIcon = new ImageIcon("set.png");
-	    JButton seticon = new JButton(setIcon);
+		
+		ImageIcon setimage = new ImageIcon("./icon/set1.png");
+	    JButton seticon = new JButton(setimage);
+	    seticon.setBorderPainted(false);
+	    seticon.setContentAreaFilled(false);
+	    seticon.setOpaque(false);
 		
 		RangeStartLabel.setFont(myFont);
 		RangeStartLabel.setPreferredSize(new Dimension(80,30));
@@ -218,27 +230,47 @@ public class NetworkScanner extends JFrame {
             ip = InetAddress.getLocalHost();
             hostname = ip.getHostName();
             hostNameTextField.setText(hostname);
- 
         } catch (UnknownHostException e) {
             e.printStackTrace();
         }
+        
 		JButton upButton = new JButton("IP°Ë");
-		JComboBox optionComboBox = new JComboBox();
-		optionComboBox.addItem("/24");
-		optionComboBox.addItem("/26");
-		JButton startButton = new JButton("Start");
+		String option[]= {"/26","/24","/16","255...192","255...128","255...0","255..0.0","255.0.0.0"};
+		JComboBox optionComboBox = new JComboBox(option);
+		startButton = new JButton("¢∫Start");
+		startButton.addActionListener(new ActionListener() {	
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				JButton b = (JButton)e.getSource();
+
+				if(b.getText().equals("¢∫Start")) {
+					b.setText("°·Stop");
+					IPPingStart();
+					readyLable.setText("Ready");
+					}
+				else
+					b.setText("¢∫Start");	
+			}
+		});
+		
+		ImageIcon menuimage = new ImageIcon("./icon/menuicon.png");
+	    JButton menuicon = new JButton(menuimage);
+	    menuicon.setBorderPainted(false);
+	    menuicon.setContentAreaFilled(false);
+	    menuicon.setOpaque(false);
 		
 		hostNameLabel.setFont(myFont);
 		hostNameTextField.setPreferredSize(new Dimension(90,30));
 		upButton.setPreferredSize(new Dimension(50, 30));
 		optionComboBox.setPreferredSize(new Dimension(90, 30));
-		startButton.setPreferredSize(new Dimension(50, 30));
+		startButton.setPreferredSize(new Dimension(70, 30));
 		
 		toolbar2.add(hostNameLabel);
 		toolbar2.add(hostNameTextField);
 		toolbar2.add(upButton);
 		toolbar2.add(optionComboBox);
 		toolbar2.add(startButton);
+		toolbar2.add(menuicon);
 		
 		JPanel pane = new JPanel(new BorderLayout());
 		pane.add(toolbar1,BorderLayout.NORTH);
@@ -254,10 +286,59 @@ public class NetworkScanner extends JFrame {
 		
 	}
 	
+	private void IPPingStart() {
+		jdtm.setRowCount(0);
+		Object row[]=new Object[5];
+		for(int j=1;j<255;j++)
+			row[0]=ipAddress + ip;
+		for (int i = 1; i < 255; i++) {
+			int ip = i;
+		Thread thread = new Thread() {
+			
+		public void run() {
+		try {
+			String ipAddress = "192.168.3.";
+			
+				InetAddress inet = InetAddress.getByName(ipAddress + ip);
+
+				long finish = 0;
+				long start = new GregorianCalendar().getTimeInMillis();
+				if (inet.isReachable(2000)) {
+					start = new GregorianCalendar().getTimeInMillis();
+					finish = new GregorianCalendar().getTimeInMillis();
+					row[0]=ipAddress + ip;
+					row[1]= finish - start + "ms";
+					row[2]= inet.getHostName();
+					row[3]="[n/a]";
+					row[4]="[n/a]";
+					jdtm.addRow(row);
+					
+				} else {
+					finish = new GregorianCalendar().getTimeInMillis();
+					row[0]=ipAddress + ip;
+					row[1]=0 + "ms";
+					row[2]="[n/s]";
+					row[3]="[n/a]";
+					row[4]="[n/a]";
+					jdtm.addRow(row);
+				}
+			
+		} catch (Exception e) {
+			System.out.println("Exception:" + e.getMessage());
+				}
+			}
+		};
+		thread.start();
+		}
+	}
+		readyLable.setText("Wait for all threads to terminate...");	
+	}
+
 	public Object[][] initTable() {
 		Object[][] result = new Object[254][5];
 		return result;
 	}
+	
 	
 	public static void main(String[] args) {
 		NetworkScanner OL = new NetworkScanner();
