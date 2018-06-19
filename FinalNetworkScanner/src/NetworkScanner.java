@@ -17,6 +17,7 @@ import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
+import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
@@ -28,6 +29,7 @@ public class NetworkScanner extends JFrame {
 	static DefaultTableModel jTable;
 	private JButton startButton;
 	private JLabel readyLable;
+	private String myIp = null;
 	public NetworkScanner() {
 		setTitle("Ping");
 		
@@ -156,18 +158,24 @@ public class NetworkScanner extends JFrame {
 		JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
 		add(statusPanel, BorderLayout.SOUTH);
 		readyLable = new JLabel("Ready");
-		readyLable.setPreferredSize(new Dimension(320, 20));
+		readyLable.setPreferredSize(new Dimension(220, 20));
 		readyLable.setBorder(new SoftBevelBorder(SoftBevelBorder.LOWERED));
 		JLabel displayLable = new JLabel("Display: All");
-		displayLable.setPreferredSize(new Dimension(170, 20));
+		displayLable.setPreferredSize(new Dimension(100, 20));
 		displayLable.setBorder(new SoftBevelBorder(SoftBevelBorder.LOWERED));
 		JLabel ThreadsLable = new JLabel("Threads: 0");
-		ThreadsLable.setPreferredSize(new Dimension(170, 20));
+		ThreadsLable.setPreferredSize(new Dimension(100, 20));
 		ThreadsLable.setBorder(new SoftBevelBorder(SoftBevelBorder.LOWERED));
+		JProgressBar loading = new JProgressBar();
+	    loading.setMinimum(0);
+	    loading.setMaximum(253);
+	    loading.setPreferredSize(new Dimension(240, 20));
+		loading.setBorder(new SoftBevelBorder(SoftBevelBorder.LOWERED));
 		
 		statusPanel.add(readyLable);
 		statusPanel.add(displayLable);
 		statusPanel.add(ThreadsLable);
+		statusPanel.add(loading);
 		
 		
 		//status bar end
@@ -224,17 +232,30 @@ public class NetworkScanner extends JFrame {
 		
 		JLabel hostNameLabel = new JLabel("Hostname : ");
 		JTextField hostNameTextField = new JTextField(10);
-		InetAddress ip;
         String hostname;
         try {
-            ip = InetAddress.getLocalHost();
-            hostname = ip.getHostName();
+            InetAddress IP = InetAddress.getLocalHost();
+        	myIp=IP.getHostAddress();
+            hostname = IP.getHostName();
             hostNameTextField.setText(hostname);
         } catch (UnknownHostException e) {
             e.printStackTrace();
         }
+        String fixedIP =myIp.substring(0, myIp.lastIndexOf(".")+1);
+		rangeStartTextField.setText(fixedIP + "1");
+		rangeEndTextField.setText(fixedIP+"254");
+		
         
 		JButton upButton = new JButton("IP°Ë");
+		upButton.addActionListener(new ActionListener() {
+			
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				rangeStartTextField.setText(myIp);
+				rangeEndTextField.setText(myIp);
+			}
+		});
+		
 		String option[]= {"/26","/24","/16","255...192","255...128","255...0","255..0.0","255.0.0.0"};
 		JComboBox optionComboBox = new JComboBox(option);
 		startButton = new JButton("¢∫Start");
@@ -244,8 +265,43 @@ public class NetworkScanner extends JFrame {
 				JButton b = (JButton)e.getSource();
 
 				if(b.getText().equals("¢∫Start")) {
-					b.setText("°·Stop");
-					IPPingStart();
+					loading.setStringPainted(true);
+					Pinging[] ping = new Pinging[254];
+					//add
+					for(int i = 0; i <= 253; i++) {
+						ping[i] = new Pinging(fixedIP + (i+1));
+						ping[i].start();
+						loading.setValue(i);
+					}
+					for(int i = 0;i<=253;i++) {
+						Object[] msg = ping[i].getMsg();
+						stats[i][0] = msg[0];
+						
+						if(msg[1]!=null) {
+							stats[i][1] = msg[1];
+						}else {
+							stats[i][1]="[n/a]";
+						}
+						if(msg[2]!=null) {
+							stats[i][2] = msg[2];
+						}else {
+							stats[i][2]="[n/s]";
+						}
+						if(msg[3]!=null) {
+							stats[i][3] = msg[3];
+						}else {
+							stats[i][3]="[n/s]";
+						}
+						loading.setValue(i);
+						loading.repaint();
+					}
+					/*if(msg[1] != null || msg[2] != null || msg[3] == null) {
+						portscan.
+						scan value == null => stats[i][4] = "[n/s]"
+						scan value != null => assign value stats[i][4] 
+					}*/
+					jTable.repaint();
+					loading.setStringPainted(true);
 					readyLable.setText("Ready");
 					}
 				else
@@ -284,54 +340,6 @@ public class NetworkScanner extends JFrame {
 		setDefaultCloseOperation(EXIT_ON_CLOSE);
 		setVisible(true);
 		
-	}
-	
-	private void IPPingStart() {
-		jdtm.setRowCount(0);
-		Object row[]=new Object[5];
-		for(int j=1;j<255;j++)
-			row[0]=ipAddress + ip;
-		for (int i = 1; i < 255; i++) {
-			int ip = i;
-		Thread thread = new Thread() {
-			
-		public void run() {
-		try {
-			String ipAddress = "192.168.3.";
-			
-				InetAddress inet = InetAddress.getByName(ipAddress + ip);
-
-				long finish = 0;
-				long start = new GregorianCalendar().getTimeInMillis();
-				if (inet.isReachable(2000)) {
-					start = new GregorianCalendar().getTimeInMillis();
-					finish = new GregorianCalendar().getTimeInMillis();
-					row[0]=ipAddress + ip;
-					row[1]= finish - start + "ms";
-					row[2]= inet.getHostName();
-					row[3]="[n/a]";
-					row[4]="[n/a]";
-					jdtm.addRow(row);
-					
-				} else {
-					finish = new GregorianCalendar().getTimeInMillis();
-					row[0]=ipAddress + ip;
-					row[1]=0 + "ms";
-					row[2]="[n/s]";
-					row[3]="[n/a]";
-					row[4]="[n/a]";
-					jdtm.addRow(row);
-				}
-			
-		} catch (Exception e) {
-			System.out.println("Exception:" + e.getMessage());
-				}
-			}
-		};
-		thread.start();
-		}
-	}
-		readyLable.setText("Wait for all threads to terminate...");	
 	}
 
 	public Object[][] initTable() {
