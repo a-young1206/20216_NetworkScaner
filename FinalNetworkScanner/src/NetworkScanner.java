@@ -4,9 +4,22 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.net.UnknownHostException;
-import java.util.GregorianCalendar;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
@@ -182,7 +195,6 @@ public class NetworkScanner extends JFrame {
 		
 		//table begin
 		
-		
 		String[] titles = new String[] {
 				"IP", "Ping", "Hostname", "TTL", "Port"
 		};
@@ -265,45 +277,87 @@ public class NetworkScanner extends JFrame {
 				JButton b = (JButton)e.getSource();
 
 				if(b.getText().equals("▶Start")) {
-					loading.setStringPainted(true);
-					Pinging[] ping = new Pinging[254];
-					//add
-					for(int i = 0; i <= 253; i++) {
-						ping[i] = new Pinging(fixedIP + (i+1));
-						ping[i].start();
-						loading.setValue(i);
-					}
-					for(int i = 0;i<=253;i++) {
-						Object[] msg = ping[i].getMsg();
-						stats[i][0] = msg[0];
-						
-						if(msg[1]!=null) {
-							stats[i][1] = msg[1];
-						}else {
-							stats[i][1]="[n/a]";
+					b.setText("■Stop");
+					loading.setValue(0);
+					for(int i = 1; i <= 254; i++) {
+						final int I = i;
+						String myIP = null;
+						try {
+							InetAddress ia = InetAddress.getLocalHost();
+							myIP = ia.getHostAddress();
+						}catch(Exception e1) {
+							
 						}
-						if(msg[2]!=null) {
-							stats[i][2] = msg[2];
-						}else {
-							stats[i][2]="[n/s]";
-						}
-						if(msg[3]!=null) {
-							stats[i][3] = msg[3];
-						}else {
-							stats[i][3]="[n/s]";
-						}
-						loading.setValue(i);
-						loading.repaint();
+						String ip = myIP.substring(0,myIP.lastIndexOf(".") +1)+I;
+						String msg[] = {null, null, null, null, null};
+						msg[0] = ip;
+						Thread thread = new Thread() {
+							@Override
+							public void run() {
+								InputStream is = null;
+								BufferedReader br = null;
+								try {
+									Runtime runtime = Runtime.getRuntime();
+									Process pro = runtime.exec("ping -a "+ip);
+									is = pro.getInputStream();
+									br = new BufferedReader(new InputStreamReader(is));
+									String line = null;
+							        InetAddress address = InetAddress.getByName(ip);
+									boolean reachable = address.isReachable(200);
+									
+									if(reachable) {
+										jTable.setValueAt(ip, I-1, 0);
+										while((line = br.readLine()) != null) {
+											if(line.indexOf("[") >= 0) {
+												msg[2] = line.substring(5, line.indexOf("[") - 1);
+												if (msg[2].length()==0) msg[2] = "[n/a]";
+												
+												stats[I][2] = msg[2];
+											}
+											if(line.indexOf("ms") >= 0) {
+												msg[1] = line.substring(line.indexOf("ms") - 1, line.indexOf("ms") + 2);
+												msg[3] = line.substring(line.indexOf("TTL=") + 4, line.length());
+												stats[I][1] = msg[1];
+												stats[I][3] = msg[3];
+												jTable.setValueAt(msg[1], I-1, 1);
+												jTable.setValueAt(msg[3], I-1, 3);
+												final ExecutorService es = Executors .newFixedThreadPool(20);
+												final int timeout = 200;
+												final List<Future<ScanResult>> futures = new ArrayList<>();
+												for(int port = 1 ; port <=1024; port++) {
+													futures.add(portIsOpen(es,ip,port,timeout));
+												}
+												es.awaitTermination(200L, TimeUnit.MILLISECONDS);
+												int openPorts = 0;
+												String openPortsNum = "";
+												for(final Future<ScanResult> f : futures) {
+													if(f.get().isOpen()) {
+														openPorts++;
+														openPortsNum += f.get().getPort()+",";
+														loading.setValue(I);
+														loading.repaint();
+													}else jTable.setValueAt("[n/s]", I-1, 4);
+												}
+											break;
+											}
+										}
+									}else {
+										jTable.setValueAt(ip, I-1, 0);
+										jTable.setValueAt("[n/a]", I-1, 1);
+										jTable.setValueAt("[n/s]", I-1, 2);
+										jTable.setValueAt("[n/s]", I-1, 3);
+										jTable.setValueAt("[n/s]", I-1, 4);
+									}										
+								}catch(Exception e) {
+									e.printStackTrace();
+								}
+							}
+						};
+						thread.start();
+						//loading.setValue(253);
 					}
-					/*if(msg[1] != null || msg[2] != null || msg[3] == null) {
-						portscan.
-						scan value == null => stats[i][4] = "[n/s]"
-						scan value != null => assign value stats[i][4] 
-					}*/
-					jTable.repaint();
-					loading.setStringPainted(true);
-					readyLable.setText("Ready");
-					}
+					
+				}
 				else
 					b.setText("▶Start");	
 			}
@@ -340,6 +394,22 @@ public class NetworkScanner extends JFrame {
 		setDefaultCloseOperation(EXIT_ON_CLOSE);
 		setVisible(true);
 		
+	}
+	
+	public Future<ScanResult> portIsOpen(final ExecutorService es, final String ip, final int port, final int timeout){
+		return es.submit(new Callable<ScanResult>() {//submit=> thread의 start()와 비슷
+			@Override
+			public ScanResult call() {
+				try {
+						Socket socket = new Socket();
+						socket.connect(new InetSocketAddress(ip, port),timeout);
+						socket.close();
+						return new ScanResult(port, true);					
+				}catch (Exception e) {
+					return new ScanResult(port, false);
+				}
+			}
+		});
 	}
 
 	public Object[][] initTable() {
