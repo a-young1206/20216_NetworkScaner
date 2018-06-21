@@ -1,4 +1,5 @@
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -18,8 +19,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
@@ -35,7 +34,9 @@ import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.JToolBar;
+import javax.swing.UIManager;
 import javax.swing.border.SoftBevelBorder;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 
 public class NetworkScanner extends JFrame {
@@ -43,6 +44,8 @@ public class NetworkScanner extends JFrame {
 	private JButton startButton;
 	private JLabel readyLable;
 	private String myIp = null;
+	private Object[] msg;
+	private String PortIs;
 	public NetworkScanner() {
 		setTitle("Ping");
 		
@@ -196,7 +199,7 @@ public class NetworkScanner extends JFrame {
 		//table begin
 		
 		String[] titles = new String[] {
-				"IP", "Ping", "Hostname", "TTL", "Port"
+				"IP", "Ping", "Hostname", "TTL", "Ports [0+]"
 		};
 		Object[][] stats = initTable();
 		
@@ -275,7 +278,6 @@ public class NetworkScanner extends JFrame {
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				JButton b = (JButton)e.getSource();
-
 				if(b.getText().equals("¢ºStart")) {
 					b.setText("¡áStop");
 					loading.setValue(0);
@@ -307,12 +309,12 @@ public class NetworkScanner extends JFrame {
 									
 									if(reachable) {
 										jTable.setValueAt(ip, I-1, 0);
+										
 										while((line = br.readLine()) != null) {
 											if(line.indexOf("[") >= 0) {
 												msg[2] = line.substring(5, line.indexOf("[") - 1);
-												if (msg[2].length()==0) msg[2] = "[n/a]";
+												jTable.setValueAt(msg[2], I-1, 2);
 												
-												stats[I][2] = msg[2];
 											}
 											if(line.indexOf("ms") >= 0) {
 												msg[1] = line.substring(line.indexOf("ms") - 1, line.indexOf("ms") + 2);
@@ -321,26 +323,35 @@ public class NetworkScanner extends JFrame {
 												stats[I][3] = msg[3];
 												jTable.setValueAt(msg[1], I-1, 1);
 												jTable.setValueAt(msg[3], I-1, 3);
-												final ExecutorService es = Executors .newFixedThreadPool(20);
-												final int timeout = 200;
-												final List<Future<ScanResult>> futures = new ArrayList<>();
-												for(int port = 1 ; port <=1024; port++) {
-													futures.add(portIsOpen(es,ip,port,timeout));
-												}
-												es.awaitTermination(200L, TimeUnit.MILLISECONDS);
-												int openPorts = 0;
-												String openPortsNum = "";
-												for(final Future<ScanResult> f : futures) {
-													if(f.get().isOpen()) {
-														openPorts++;
-														openPortsNum += f.get().getPort()+",";
-														loading.setValue(I);
-														loading.repaint();
-													}else jTable.setValueAt("[n/s]", I-1, 4);
-												}
+												
 											break;
 											}
+											
+												
+											final ExecutorService es = Executors .newFixedThreadPool(20);
+											final int timeout = 30;
+											final List<Future<ScanResult>> futures = new ArrayList<>();
+											for(int port = 1 ; port <=1024; port++) {
+												futures.add(portIsOpen(es,ip,port,timeout));
+											}
+											es.awaitTermination(200L, TimeUnit.MILLISECONDS);
+											int openPorts = 0;
+											String openPortsNum = "";
+											for(final Future<ScanResult> f : futures) {
+												if(f.get().isOpen()) {
+													openPorts++;
+													openPortsNum += f.get().getPort()+",";
+												}
+												if (!openPortsNum.equals(""))
+												msg[4]=	openPortsNum.substring(0,openPortsNum.length()-1);
+												jTable.setValueAt(msg[4], I-1, 4);
+												
+												loading.setValue(I-1);
+												loading.repaint();
+											}
 										}
+										if (msg[2]==null)
+												jTable.setValueAt("[n/a]", I-1, 2);
 									}else {
 										jTable.setValueAt(ip, I-1, 0);
 										jTable.setValueAt("[n/a]", I-1, 1);
@@ -354,8 +365,9 @@ public class NetworkScanner extends JFrame {
 							}
 						};
 						thread.start();
-						//loading.setValue(253);
+						
 					}
+					loading.setValue(253);
 					
 				}
 				else
@@ -411,11 +423,16 @@ public class NetworkScanner extends JFrame {
 			}
 		});
 	}
+	
+	
+
 
 	public Object[][] initTable() {
 		Object[][] result = new Object[254][5];
 		return result;
 	}
+
+	
 	
 	
 	public static void main(String[] args) {
