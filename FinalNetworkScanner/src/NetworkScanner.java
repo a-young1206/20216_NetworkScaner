@@ -34,6 +34,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.JToolBar;
+import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.border.SoftBevelBorder;
 import javax.swing.table.DefaultTableCellRenderer;
@@ -46,8 +47,9 @@ public class NetworkScanner extends JFrame {
 	private String myIp = null;
 	private Object[] msg;
 	private String PortIs;
+	private Thread thread;
 	public NetworkScanner() {
-		setTitle("Ping");
+		setTitle("Network Scanner");
 		
 		//menu begin
 		
@@ -184,7 +186,7 @@ public class NetworkScanner extends JFrame {
 		ThreadsLable.setBorder(new SoftBevelBorder(SoftBevelBorder.LOWERED));
 		JProgressBar loading = new JProgressBar();
 	    loading.setMinimum(0);
-	    loading.setMaximum(253);
+	    loading.setMaximum(100);
 	    loading.setPreferredSize(new Dimension(240, 20));
 		loading.setBorder(new SoftBevelBorder(SoftBevelBorder.LOWERED));
 		
@@ -280,7 +282,31 @@ public class NetworkScanner extends JFrame {
 				JButton b = (JButton)e.getSource();
 				if(b.getText().equals("¢∫Start")) {
 					b.setText("°·Stop");
+					readyLable.setText("Please wait...");
 					loading.setValue(0);
+					
+					Thread lodingThread = new Thread() {
+						@Override
+						public void run() {
+							int i;
+							 for ( i = 0; i <= 100; i++) {
+								 final int I=i;
+						          SwingUtilities.invokeLater(new Runnable() {
+						           public void run() {
+						              loading.setValue(I);
+						            }
+						          });
+
+						          try {
+						            java.lang.Thread.sleep(100);
+						          }
+						          catch(Exception e) { }
+						        }
+						}
+					};lodingThread.start();
+					//b.setText("¢∫Start");
+					//readyLable.setText("Ready");
+					
 					for(int i = 1; i <= 254; i++) {
 						final int I = i;
 						String myIP = null;
@@ -296,6 +322,7 @@ public class NetworkScanner extends JFrame {
 						Thread thread = new Thread() {
 							@Override
 							public void run() {
+								
 								InputStream is = null;
 								BufferedReader br = null;
 								try {
@@ -319,8 +346,6 @@ public class NetworkScanner extends JFrame {
 											if(line.indexOf("ms") >= 0) {
 												msg[1] = line.substring(line.indexOf("ms") - 1, line.indexOf("ms") + 2);
 												msg[3] = line.substring(line.indexOf("TTL=") + 4, line.length());
-												stats[I][1] = msg[1];
-												stats[I][3] = msg[3];
 												jTable.setValueAt(msg[1], I-1, 1);
 												jTable.setValueAt(msg[3], I-1, 3);
 												
@@ -329,7 +354,7 @@ public class NetworkScanner extends JFrame {
 											
 												
 											final ExecutorService es = Executors .newFixedThreadPool(20);
-											final int timeout = 30;
+											final int timeout = 50;
 											final List<Future<ScanResult>> futures = new ArrayList<>();
 											for(int port = 1 ; port <=1024; port++) {
 												futures.add(portIsOpen(es,ip,port,timeout));
@@ -346,31 +371,43 @@ public class NetworkScanner extends JFrame {
 												msg[4]=	openPortsNum.substring(0,openPortsNum.length()-1);
 												jTable.setValueAt(msg[4], I-1, 4);
 												
-												loading.setValue(I-1);
-												loading.repaint();
+												
 											}
 										}
+										if (msg[1]==null)
+											jTable.setValueAt("[n/a]", I-1, 1);
 										if (msg[2]==null)
-												jTable.setValueAt("[n/a]", I-1, 2);
+											jTable.setValueAt("[n/a]", I-1, 2);
+										if (msg[3]==null)
+											jTable.setValueAt("[n/s]", I-1, 3);
+										if (msg[4]==null)
+											jTable.setValueAt("[n/s]", I-1, 4);
 									}else {
 										jTable.setValueAt(ip, I-1, 0);
 										jTable.setValueAt("[n/a]", I-1, 1);
 										jTable.setValueAt("[n/s]", I-1, 2);
 										jTable.setValueAt("[n/s]", I-1, 3);
 										jTable.setValueAt("[n/s]", I-1, 4);
+										loading.setValue(170);
+										loading.repaint();
 									}										
 								}catch(Exception e) {
 									e.printStackTrace();
 								}
+								
 							}
+							
 						};
 						thread.start();
 						
+							if(thread.isAlive()==false) {
+								loading.setValue(253);
+								readyLable.setText("Ready");
+								b.setText("¢∫Start");}				
 					}
-					loading.setValue(253);
-					
 				}
 				else
+					
 					b.setText("¢∫Start");	
 			}
 		});
